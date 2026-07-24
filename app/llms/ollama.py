@@ -12,6 +12,7 @@ CONSULTANT_MODEL = os.getenv("CONSULTANT_MODEL", DEFAULT_MODEL)
 REVIEWER_MODEL = os.getenv("REVIEWER_MODEL", DEFAULT_MODEL)
 ALTERNATIVE_MODEL = os.getenv("ALTTERNATIVE_MODEL", "qwen2.5:1.5b")
 EDITOR_MODEL = os.getenv("REVIEWER_MODEL", DEFAULT_MODEL)
+COLLECTOR_MODEL = os.getenv("COLLECTOR_MODEL", DEFAULT_MODEL)
 
 def get_llm():
     return ChatOllama(
@@ -60,6 +61,14 @@ def get_reviewer_llm():
 def get_editor_llm():
     return ChatOllama(
         model=EDITOR_MODEL,
+        base_url=OLLAMA_BASE_URL,
+        validate_model_on_init=True,
+        temperature=0,
+    )
+
+def get_collector_llm():
+    return ChatOllama(
+        model=COLLECTOR_MODEL,
         base_url=OLLAMA_BASE_URL,
         validate_model_on_init=True,
         temperature=0,

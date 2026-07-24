@@ -102,6 +102,16 @@ def clear_chat_history():
                 """
             )
 
+def delete_conversation(conversation_id: str):
+    with psycopg.connect(DB_URL) as conn:
+        with conn.cursor() as cur:
+            cur.execute(
+                """
+                    DELETE FROM chat_conversations 
+                    WHERE conversation_id = %s
+                """,
+                (conversation_id,),
+            )
 
 hardcoded_title_query = """ 
                 SELECT

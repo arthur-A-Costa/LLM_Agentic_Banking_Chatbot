@@ -49,7 +49,7 @@ services:
       ENABLE_REVIEW_AGENT: true
       DEFAULT_MODEL: qwen3:8b
       ALTERNATIVE_MODEL: qwen2.5:1.5b
-      ROUTER_MODEL: qwen3:8b
+      ROUTER_MODEL: qwen2.5:1.5b
       SALESMAN_MODEL: qwen3:8b
       CONSULTANT_MODEL: qwen3:8b
       REVIEWER_MODEL: qwen3:8b
@@ -107,6 +107,9 @@ services:
       - postgres
       - ollama
       - chromadb
+    volumes:
+      - ./app:/app/app
+      - ./mcp_server:/app/mcp_server  
     environment:
       DATABASE_URL: postgresql://postgres_user:postgres_password@postgres:5432/postgres
       OLLAMA_BASE_URL: http://ollama:11434
@@ -121,6 +124,9 @@ services:
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
       LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
+      JINA_AUTH_KEY: ${JINA_AUTH_KEY}
+      JINA: ${JINA}
+      JINA_MAX_PAGE: ${JINA_MAX_PAGE}
     ports:
       - "8010:8001"
     networks:

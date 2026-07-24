@@ -15,6 +15,7 @@ from app.rag.pgvector_store import (
 )
 VECTOR_STORE_TYPE = os.getenv("VECTOR_STORE_TYPE", "pgvector")  # Default to pgvector if not set
 
+# Not currently in use
 @tool
 def search_product_db(product_type: str | None = None) -> list[dict]:
     """
@@ -30,7 +31,8 @@ def search_product_db(product_type: str | None = None) -> list[dict]:
     - overdraft
     """
     return search_products(product_type)
- 
+
+# Using MCP version
 @tool
 def search_consortium_db(consortium_type: str | None = None) -> list[dict]:
     """
@@ -154,6 +156,7 @@ def consortium_installment_simulation(
         membership_fee=membership_fee,
     ) 
 
+# Using MCP version
 @tool 
 def search_consortium_documents(query: str) -> str:
     """
@@ -230,6 +233,40 @@ async def get_consultant_tools():
         #search_consortium_documents,
         *filtered_mcp_tools,
     ]
+
+async def get_specialist_tools():
+    mcp_tools = await get_mcp_tools()
+
+    allowed_mcp_tool_names = {
+        "simulate_consortium_payment",
+    }
+
+    filtered_mcp_tools = [
+        tool for tool in mcp_tools
+        if tool.name in allowed_mcp_tool_names
+    ]
+
+    return [
+        check_consortium_affordability,
+        check_consortium_suitability,
+        consortium_installment_simulation,
+        *filtered_mcp_tools,
+    ]
+
+async def get_collector_tools():
+    mcp_tools = await get_mcp_tools()
+
+    allowed_mcp_tool_names = {
+        "search_consortium_products",
+        "search_consortium_documents",
+        "search_public_web",
+    }
+
+    collector_tools = {
+        tool.name: tool for tool in mcp_tools if tool.name in allowed_mcp_tool_names
+    }
+
+    return collector_tools
 
 """
 salesman_tools = [

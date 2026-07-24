@@ -1,5 +1,4 @@
 from typing import Literal, TypedDict, Annotated
-import operator
 import uuid
 from pydantic import BaseModel
 
@@ -7,7 +6,6 @@ from langchain_core.runnables import RunnableConfig
 from langchain_core.messages import AnyMessage, AIMessage
 
 from langgraph.graph import StateGraph, START, END
-from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.postgres.aio import AsyncPostgresSaver
 
@@ -20,6 +18,7 @@ from app.agents.consultant_agent import create_consultant_agent
 from app.agents.router_agent import router_message
 from app.agents.reviewer_agent import create_reviewer_agent
 from app.agents.editor_agent import create_editor_agent
+from app.agents.collector_agent import planner_creator, planner_executor
 
 import os
 
@@ -33,10 +32,14 @@ class ChatGraphState(TypedDict):
     router_reason: str
     draft_response: str
     response: str
+    used_tools: list[str]
+    tool_results: dict
+    tool_context: str
+    answer_requirements: list[str]
     review_action: str
     review_text: list[str]
 
-# Can be used in teh future for structured review responses
+# Can be used in the future for structured review responses
 class ReviewResult(BaseModel):
     passed: bool
     severity: Literal["none", "minor", "major"]
@@ -55,6 +58,7 @@ def get_latest_user_message(state: ChatGraphState) -> str:
 
 def router_node(state: ChatGraphState) -> ChatGraphState:
     latest_message = get_latest_user_message(state)
+    
     decision = router_message(latest_message)
 
     return{
@@ -68,20 +72,54 @@ def choose_next_node(
 ) -> Literal["salesman", "consultant", "human_support"]:
     selected_agent = state["selected_agent"]
 
-    if selected_agent == "human_support":
-        return "human_support"
+    #if selected_agent == "human_support":
+    #    return "human_support"
 
     if selected_agent == "salesman":
         return "salesman"
 
     return "consultant"
 
+async def collector_node(state: ChatGraphState) -> ChatGraphState:
+    latest_message = get_latest_user_message(state)
+    planner = planner_creator(latest_message)
+    evidence = await planner_executor(planner, latest_message)
+
+    return evidence
+
 async def salesman_node(state: ChatGraphState) -> ChatGraphState:
+    messages = state["messages"]
+    evidence = state["tool_context"]
+    used_tools = state["used_tools"]
+    latest_message = get_latest_user_message(state)
+    answer_requirements = state["answer_requirements"]
     
-    salesmas_agent = await create_salesman_agent()
-    result = await salesmas_agent.ainvoke(
+    salesman_agent = await create_salesman_agent()
+    result = await salesman_agent.ainvoke(
         {
-              "messages": state["messages"]
+              "messages": [
+                  {
+                      "role": "user",
+                      "content": (
+                            "You are the salesman agent."
+                            "All the necessary evidence from the searching tools has already been collected for you.\n"
+                            "Utilize the evidence already collected as you only source of facts, and analyze the user's last message "
+                            "to create an answer that completely answers the prompt."
+                            "Utilize the answer requiremens section to understand what you must add in your final output and what information "
+                            "you must extract from the evidence collected.\n"
+                            "You have access to simulation tools that you can use in case the user requests simulated information, "
+                            "calculations, or evaluations.\n"
+                            #"You are also given the whole conversation history, but its only needed in case the user refers back to an old message.\n"
+                            "Do not use or create any information that is not in the evidence you receive.\n"
+                            "The web search information might be in portuguese, translate it and create an answer in the same language as the user's"
+                            f"Used tools: \n{used_tools}\n\n"
+                            f"answer_requirements: \n{answer_requirements}\n\n"
+                            f"Evidence collected: \n{evidence}\n\n"
+                            f"Last user message: \n{latest_message}\n\n"
+                            "Write a complete answer in the same language as the prompt."
+                      )
+                  }
+              ]
         }
     )
 
@@ -94,11 +132,40 @@ async def salesman_node(state: ChatGraphState) -> ChatGraphState:
     }
 
 async def consultant_node(state: ChatGraphState) -> ChatGraphState:
+    messages = state["messages"]
+    evidence = state["tool_context"]
+    used_tools = state["used_tools"]
+    latest_message = get_latest_user_message(state)
+    answer_requirements = state["answer_requirements"]
     
     consultant_agent = await create_consultant_agent()
     result = await consultant_agent.ainvoke(
         {
-              "messages": state["messages"]
+              "messages": [
+                  {
+                      "role": "user",
+                      "content": (
+                          "You are the consultant agent."
+                          "All the necessary evidence from the searching tools has already been collected for you.\n"
+                          "Utilize the evidence already collected as you only source of truth, and analyze the user's last message "
+                          "to create an answer that completely answers the prompt."
+                          "Utilize the answer requiremens section to understand what you must add in your final output and what information "
+                          "you must extract from the evidence collected.\n"
+                          "You have access to simulation tools that you can use in case the user requests simulated information, "
+                          "calculations, or evaluations.\n"
+                          "Guidelines:\n"
+                          "- Do not use or create any information that is not in the evidence you receive.\n"
+                          "- Do not use model memory for facts covered by the evidence.\n"
+                          "- Do not mention years, prices, fees, or plans that are not present in the evidence.\n"
+                          "The web search information might be in portuguese, translate it and create an answer in the same language as the user's\n"
+                          f"User message: \n{latest_message}\n\n"
+                          f"Used tools: \n{used_tools}\n\n"
+                          f"Answer requirements: \n{answer_requirements}\n\n"
+                          f"Evidence collected: \n{evidence}\n\n"
+                          "Write a complete answer in the same language as the prompt."
+                      )
+                  }
+              ]
         }
     )
 
@@ -125,17 +192,17 @@ async def reviewer_node(state: ChatGraphState) -> ChatGraphState:
                         "Review and analyze the following draft answer before it is shown "
                         "to the customer and make sure it completely answers the users last message "
                         "and contains no gramatical mistakes or other issues.\n\n"
-                        "Return one of the following actions:"
-                        "- return"
-                        "- edit"
-                        "Choose 'return' if the answer is acceptable and meets all requirements"
-                        "Choose 'edit' in cases such as:"
-                        "- The text is not in the same language as the question"
-                        "- The grammar or formatting is poor or incorrect"
-                        "- The answer needs to be refined or made clearer"
-                        "- The response cites internal functions, product codes, or other information that should be hidden from the public"
-                        f"Last user message:\n{latest_user_message}\n"
-                        f"Draft answer:\n{draft_response}\n"
+                        "Return one of the following actions:\n"
+                        "- return\n"
+                        "- edit\n"
+                        "Choose 'return' if the answer is acceptable and meets all requirements\n"
+                        "Choose 'edit' in cases such as:\n"
+                        "- The text is not in the same language as the question\n"
+                        "- The grammar or formatting is poor or incorrect\n"
+                        "- The answer needs to be refined or made clearer\n"
+                        "- The response cites internal functions, product codes, or other information that should be hidden from the public\n\n"
+                        f"Last user message:\n{latest_user_message}\n\n"
+                        f"Draft answer:\n{draft_response}\n\n"
                         "Response Format:\n"
                         "passed: <True or False>\n"
                         "severity: <none , minor, medium, major> based on amount of errors and issues\n"
@@ -223,10 +290,12 @@ def build_graph(checkpointer):
     agent_builder.add_node("reviewer", reviewer_node)
     agent_builder.add_node("editor", editor_node)
     agent_builder.add_node("final_response", final_response_node)
+    agent_builder.add_node("evidence_collector", collector_node)
 
     agent_builder.add_edge(START, "router")
+    agent_builder.add_edge("router", "evidence_collector")
     agent_builder.add_conditional_edges(
-        "router",
+        "evidence_collector",
         choose_next_node,
         {
             "salesman": "salesman",

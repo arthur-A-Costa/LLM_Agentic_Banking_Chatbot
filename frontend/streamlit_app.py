@@ -52,6 +52,13 @@ def clear_history():
     )
     response.raise_for_status()
 
+def delete_conversation(conversation_id: str):
+    response = requests.delete(
+        f"http://backend:8000/conversations/{conversation_id}/exclude",
+        timeout = 30,
+    )
+    response.raise_for_status()
+
 if 'conversation_id' not in st.session_state:
     st.session_state.conversation_id = query_params.get("conversation_id")
 
@@ -120,17 +127,44 @@ with st.sidebar:
             if is_current:
                 button_title = f"✅ {title}"
 
-            if st.button(
-                button_title,
-                key = conversation_id,
-                width="stretch"
-            ):
-                st.session_state.conversation_id = conversation_id
-                st.query_params["conversation_id"] = conversation_id
+            col1, col2 = st.columns([0.85, 0.15])
 
-                st.session_state.messages = load_conversation_messages(conversation_id)
+            with col1:
+                if st.button(
+                    button_title,
+                    key=f"open_{conversation_id}",
+                    use_container_width=True,
+                ):
+                    st.session_state.conversation_id = conversation_id
+                    st.query_params["conversation_id"] = conversation_id
 
-                st.rerun()
+                    st.session_state.messages = load_conversation_messages(conversation_id)
+
+                    st.rerun()
+
+            with col2:
+                with st.popover(
+                    "⋮",
+                    help="menu",
+                    use_container_width=True
+                ):
+
+                    if st.button(
+                        "Delete Conversation", 
+                        key = f"delete_{conversation_id}",
+                        use_container_width=True,
+                    ):
+                        delete_conversation(conversation_id)
+                        if is_current:
+                            st.session_state.messages = [
+                                {
+                                    "role": "assistant",
+                                    "content": INTRO_MESSAGE,
+                                }
+                            ]
+                            st.session_state.conversation_id = None
+                            st.query_params.clear()
+                        st.rerun()
 
     except Exception as error:
         st.caption("Could not load conversations.")

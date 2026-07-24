@@ -1,9 +1,12 @@
 from mcp.server.fastmcp import FastMCP
+import os
 
 from app.tools.consortium import search_consortium
 from app.tools.registry import consortium_installment_simulation
 from app.rag.pgvector_store import search_documents_pgvector, format_search_results_pgvector
-from app.tools.exa_web_search import search_web_exa
+from app.tools.exa_web_search import search_web_exa, search_web_with_jina
+
+JINA = os.getenv("JINA", False)
 
 mcp = FastMCP(
     name="banking-consortium-mcp",
@@ -19,15 +22,29 @@ def health_check() -> str:
 @mcp.tool()
 def search_consortium_products(consortium_type: str | None = None) -> list[dict]:
     """
-    Search active consortium products from the internal PostgreSQL database.
+    Search the bank's internal PostgreSQL database for active consortium options.
 
-    consortium_type can be:
+    Use this tool whenever the user asks about:
+    - available consortium options
+    - specific consortium plans
+    - product listings
+    - credit ranges
+    - administration fees
+    - reserve fund fees
+    - maximum terms
+    - minimum income
+    - estimated monthly payment ranges
+
+    The consortium_type argument is optional.
+    Use None to list all active consortium options.
+
+    Valid consortium_type values include:
     - automobile
     - motorcycle
     - real estate
     - services
 
-    Use None to return all active consortium products.
+    This tool is the source of truth for the bank's available consortium products.
     """
     return search_consortium(consortium_type)
 
@@ -116,12 +133,19 @@ def search_public_web(query: str, k: int = 4) -> list[dict]:
     - Current value of the dollar, euro, or other currencies.
     - Current value of the stock market, such as Ibovespa, Nasdaq, S&P 500, etc.
     - Current news or events that may affect consortiums or financial markets. 
+    - Current price of a specific car model.
 
     For questions and search requests that are not pertinent to banking and consortiums politely refuse to 
     answer and explain that you only have the ability to access the web to search for information and investigate
     when the it directly connects to the themes in question (banking, economy, consortiums).   
     """
+
     return search_web_exa(query=query, k=k)
+
+    # if JINA:
+    #     return search_web_with_jina(query=query, k=k)
+    # else:
+    #     return search_web_exa(query=query, k=k)
 
 if __name__ == "__main__":
     print("Starting MCP server on 0.0.0.0:8001...", flush=True)

@@ -16,7 +16,7 @@ from prometheus_fastapi_instrumentator import Instrumentator
 
 from app.graph import create_chat_graph
 from app.agents.router_agent import router_message
-from app.db.chat_history import save_message, create_conversation, load_messages, get_sidebar_conversations, clear_chat_history
+from app.db.chat_history import save_message, create_conversation, load_messages, get_sidebar_conversations, clear_chat_history, delete_conversation
 from app.utils.title_generator import get_chat_title, update_title
 from app.custom_metrics import CHAT_REQUESTS, CHAT_ERRORS, CHAT_LATENCY
 
@@ -99,6 +99,12 @@ async def chat(chat_request: ChatRequest, http_request: Request):
             "router_reason": "",
             "draft_response": "",
             "response": "",
+            "used_tools": [],
+            "tool_results": {},
+            "tool_context": "",
+            "answer_requirements": [],
+            "review_action": "",
+            "review_text": [],
         },
         config=config
         )
@@ -146,4 +152,13 @@ def delete_history():
     return{
         "status" : "Success",
         "message" : "All conversation history was cleared"
+    }
+
+@app.delete("/conversations/{conversation_id}/exclude")
+def delete_chat(conversation_id: str):
+    delete_conversation(conversation_id)
+
+    return{
+        "status" : "Success",
+        "message" : "Conversation was deleted"
     }
