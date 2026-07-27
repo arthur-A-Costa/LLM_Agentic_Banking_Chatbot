@@ -18,7 +18,7 @@ from app.agents.consultant_agent import create_consultant_agent
 from app.agents.router_agent import router_message
 from app.agents.reviewer_agent import create_reviewer_agent
 from app.agents.editor_agent import create_editor_agent
-from app.agents.collector_agent import planner_creator, planner_executor
+from app.agents.collector_agent import planner_creator, planner_executor, information_extractor
 
 import os
 
@@ -36,6 +36,9 @@ class ChatGraphState(TypedDict):
     tool_results: dict
     tool_context: str
     answer_requirements: list[str]
+    db_data: str
+    doc_data: str
+    web_data: str
     review_action: str
     review_text: list[str]
 
@@ -84,13 +87,27 @@ async def collector_node(state: ChatGraphState) -> ChatGraphState:
     latest_message = get_latest_user_message(state)
     planner = planner_creator(latest_message)
     evidence = await planner_executor(planner, latest_message)
+    results = evidence["tool_context"]
+    requirements = evidence["answer_requirements"]
+    used_tools = evidence["used_tools"]
+    clean_evidence = information_extractor(tool_results=results, message=latest_message, answer_requirements=requirements, used_tools=used_tools)
 
-    return evidence
+    return {
+        "db_data": clean_evidence.relevant_consortium_database_data,
+        "doc_data": clean_evidence.relevant_document_data,
+        "web_data": clean_evidence.relevant_web_search_data,
+        "answer_requirements": requirements,
+        "tool_context": results,
+        "used_tools": used_tools
+    }
 
 async def salesman_node(state: ChatGraphState) -> ChatGraphState:
     messages = state["messages"]
     evidence = state["tool_context"]
     used_tools = state["used_tools"]
+    db_data = state["db_data"]
+    doc_data = state["doc_data"]
+    web_data = state["web_data"]
     latest_message = get_latest_user_message(state)
     answer_requirements = state["answer_requirements"]
     
@@ -103,19 +120,23 @@ async def salesman_node(state: ChatGraphState) -> ChatGraphState:
                       "content": (
                             "You are the salesman agent."
                             "All the necessary evidence from the searching tools has already been collected for you.\n"
-                            "Utilize the evidence already collected as you only source of facts, and analyze the user's last message "
-                            "to create an answer that completely answers the prompt."
+                            "Utilize the evidence already collected as you only source of truth, and analyze the user's last message "
+                            "to create an answer that completely answers the prompt. Each tool's output will be shown separately."
                             "Utilize the answer requiremens section to understand what you must add in your final output and what information "
                             "you must extract from the evidence collected.\n"
                             "You have access to simulation tools that you can use in case the user requests simulated information, "
                             "calculations, or evaluations.\n"
-                            #"You are also given the whole conversation history, but its only needed in case the user refers back to an old message.\n"
-                            "Do not use or create any information that is not in the evidence you receive.\n"
-                            "The web search information might be in portuguese, translate it and create an answer in the same language as the user's"
+                            "Guidelines:\n"
+                            "- Do not use or create any information that is not in the evidence you receive.\n"
+                            "- Do not use model memory for facts covered by the evidence.\n"
+                            "- Do not mention years, prices, fees, or plans that are not present in the evidence.\n"
+                            f"User message: \n{latest_message}\n\n"
                             f"Used tools: \n{used_tools}\n\n"
-                            f"answer_requirements: \n{answer_requirements}\n\n"
-                            f"Evidence collected: \n{evidence}\n\n"
-                            f"Last user message: \n{latest_message}\n\n"
+                            f"Answer requirements: \n{answer_requirements}\n\n"
+                            "Evidence collected: \n"
+                            f"Database search data: \n{db_data}\n\n"
+                            f"Web search data: \n{web_data}\n\n"
+                            f"Document search data: \n{doc_data}\n\n"
                             "Write a complete answer in the same language as the prompt."
                       )
                   }
@@ -135,6 +156,9 @@ async def consultant_node(state: ChatGraphState) -> ChatGraphState:
     messages = state["messages"]
     evidence = state["tool_context"]
     used_tools = state["used_tools"]
+    db_data = state["db_data"]
+    doc_data = state["doc_data"]
+    web_data = state["web_data"]
     latest_message = get_latest_user_message(state)
     answer_requirements = state["answer_requirements"]
     
@@ -157,11 +181,13 @@ async def consultant_node(state: ChatGraphState) -> ChatGraphState:
                           "- Do not use or create any information that is not in the evidence you receive.\n"
                           "- Do not use model memory for facts covered by the evidence.\n"
                           "- Do not mention years, prices, fees, or plans that are not present in the evidence.\n"
-                          "The web search information might be in portuguese, translate it and create an answer in the same language as the user's\n"
                           f"User message: \n{latest_message}\n\n"
                           f"Used tools: \n{used_tools}\n\n"
                           f"Answer requirements: \n{answer_requirements}\n\n"
-                          f"Evidence collected: \n{evidence}\n\n"
+                          "Evidence Collected: \n"
+                          f"Database search data: \n{db_data}\n\n"
+                          f"Web search data: \n{web_data}\n\n"
+                          f"Document search data: \n{doc_data}\n\n"
                           "Write a complete answer in the same language as the prompt."
                       )
                   }

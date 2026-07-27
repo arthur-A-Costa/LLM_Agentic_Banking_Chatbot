@@ -49,3 +49,4 @@ Thumbs.db
 
 app/prompts/graph_prompts.py
 app/prompts/portuguese_prompts.py
+app/agents/testing_scripts/

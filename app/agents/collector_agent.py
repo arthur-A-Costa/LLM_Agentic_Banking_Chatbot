@@ -23,61 +23,26 @@ class ToolPlanner(BaseModel):
     answer_requirements: list[str]
     required_specialist_tools: list[SpecialistTools] = []
 
+class ConsortiumEvidence(BaseModel):
+    product_name: str
+    consortium_type: str
+    credit_range: str | None = None
+    admin_fee: str | None = None
+    reserve_fund: str | None = None
+    minimum_income: str | None = None
+    max_term: str | None = None
+    average_monthly_payment: str | None = None
+    contemplation_method: str | None = None
+    risk_level: str | None = None
+    notes: str | None = None
+
+class ToolInformation(BaseModel):
+    relevant_web_search_data: str | None=None
+    relevant_consortium_database_data: list[ConsortiumEvidence] = Field(default_factory=list)
+    relevant_document_data: str | None = None
+
 def planner_creator(message: str) -> ToolPlanner:
     llm = get_collector_llm().with_structured_output(ToolPlanner)
-
-    portuguese_collector_prompt = f"""
-            Você é um agente planejador de evidências, especializado em decidir quais ferramentas devem ser usadas para coletar recursos e informações para outros agentes.
-
-            Ao receber uma pergunta, você deve avaliá-la e decidir quais ferramentas precisam ser chamadas para coletar todas as informações necessárias para que o próximo agente consiga
-            responder à solicitação do usuário com precisão e completude.
-
-            - Lista de Ferramentas Disponíveis -
-                Ferramentas de busca:
-                    - search_consortium_products: busca no banco de dados de consórcios informações sobre opções e detalhes dos consórcios.
-                    - search_consortium_documents: busca no banco vetorial documentos para responder perguntas relacionadas a consórcios.
-                    - search_public_web: busca na web para responder perguntas sobre valores atuais, taxas e informações externas.
-                    
-            - Diretrizes e Exemplos de Uso das Ferramentas -
-
-            1 - search_consortium_products:
-            Dá acesso a informações e dados do banco de dados sobre as opções de consórcio disponíveis. Esta ferramenta deve ser usada quando o usuário perguntar
-            quais opções de consórcio estão disponíveis, qual opção se encaixa melhor em um cenário, ou quais são os detalhes de um determinado consórcio.
-                Exemplos de perguntas:
-                - Quais opções de consórcio estão disponíveis?
-                - Qual consórcio devo considerar se quero comprar uma casa?
-                - Qual é o valor máximo de crédito que posso obter em um consórcio de automóvel?
-
-            2 - search_consortium_documents:
-            Dá acesso ao banco vetorial com documentos, FAQs, manuais, políticas e diretrizes sobre consórcios.
-            Esta ferramenta deve ser usada para responder perguntas sobre como consórcios funcionam, políticas específicas e o que acontece em cenários específicos.
-                Exemplos de perguntas:
-                - como funcionam os consórcios
-                - regras de contemplação
-                - ofertas de lance
-            
-            3 - search_public_web:
-            Dá acesso à web pública. Esta ferramenta deve ser usada para buscar valores, preços, taxas ou notícias atuais e atualizadas.
-                Exemplos de perguntas:
-                - taxa Selic atual
-                - cotação atual do dólar em reais
-                - preço médio atual de uma BMW X3 2026
-
-            DIRETRIZES CRUCIAIS:
-            - Com base na pergunta do usuário, decida quais ferramentas de busca devem ser chamadas.
-            - Planeje o uso de todas as ferramentas necessárias para responder completamente à pergunta do usuário.
-            - Nunca deduza ou chute informações, a menos que seja absolutamente necessário; se for necessário, utilize sempre o ano mais atualizado (2026) ou o modelo mais popular.
-
-            AO CRIAR O PLANEJAMENTO:
-            - Para cada ferramenta necessária, crie uma solicitação de ferramenta informando o nome da ferramenta e os argumentos necessários, e adicione essa solicitação ao campo required_tools.
-            - No planejamento, liste quais ferramentas especializadas o próximo agente talvez precise chamar para responder completamente à pergunta do usuário.
-            - Ao definir o tipo de consórcio da ferramenta ou do planejamento, responda unknown se não for possível identificar o tipo específico mencionado ou
-              se informações de mais de um tipo forem necessárias.
-            - No campo answer_requirements, adicione apenas o que deve ser respondido pelo próximo agente, não quais ferramentas devem ser usadas ou foram usadas.
-            
-            Mensagem do usuário:
-            {message}
-    """
 
     collector_prompt = f"""
             You are a evidence planner agent, specialized in deciding what tools must be used to gather resources and information for other agents.
@@ -257,3 +222,104 @@ async def planner_executor(planner: ToolPlanner, user_message: str) -> dict:
         #"clean_evidence": relevant_data_extractor(tool_results)
         #"required_specialist_tools": planner.required_specialist_tools
     }
+
+# class ToolInformation(BaseModel):
+#     relevant_web_search_data: str | None=None
+#     relevant_consortium_database_data: list[ConsortiumEvidence] = Field(default_factory=list)
+#     relevant_document_data: str | None = None
+
+# class ConsortiumEvidence(BaseModel):
+#     product_name: str
+#     consortium_type: str
+#     credit_range: str | None = None
+#     admin_fee: str | None = None
+#     reserve_fund: str | None = None
+#     minimum_income: str | None = None
+#     max_term: str | None = None
+#     average_monthly_payment: str | None = None
+#     contemplation_method: str | None = None
+#     risk_level: str | None = None
+#     notes: str | None = None
+
+def information_extractor(tool_results: dict, message: str, answer_requirements: list, used_tools: list):
+    llm = get_collector_llm().with_structured_output(ToolInformation)
+
+    prompt = f"""
+        You are an evidence extraction and normalization agent for a banking chatbot specialized in consortium products.
+
+        Your job is to read raw tool results and transform them into a clean, structured evidence brief that can be used by the next agent.
+
+        You must NOT answer the final user.
+        You must NOT make final recommendations.
+        You must NOT add information that is not present in the tool results.
+
+        Objective:
+        - Extract only the essential information needed to answer the user's question.
+        - Disconsider noise such as menus, cookie notices, website navigation, HTML fragments, duplicated content, irrelevant IDs, and unrelated text.
+        - Preserve numeric values exactly as they appear in the evidence.
+        - Preserve product names, years, prices, fees, terms, credit ranges, minimum income requirements, and URLs when available.
+        - Organize the information clearly for the consultant or sales agent.
+
+        Mandatory rules:
+        - Do not invent prices, years, fees, terms, credit ranges, minimum income requirements, requirements, or product names.
+        - Do not use the model's own knowledge.
+        - Use only information present in the tool results.
+        - If internal bank product information is present, preserve the essential product details.
+        - If irrelevant data appears, remove it or place it under "Removed irrelevant data".
+        - Do not mention tool calls, raw JSON, LangChain internal IDs, or implementation details.
+        - The output must be in English.
+
+        User Message:
+        {message}
+
+        Answer requirements defined by the planner:
+        {answer_requirements}
+
+        Tools used:
+        {used_tools}
+
+        Raw tool results:
+        {tool_results}
+
+        Respond with the following structure:
+
+        ## Relevent web search data:
+        Fill this field with any information from the web search that is crucial for the next agent to answer the user's question. 
+
+        ## Relevant internal consortium products:
+        List only the internal products relevant to the user's question.
+        - For each product, include:
+            - Product name
+            - Consortium type
+            - Credit range
+            - Administration fee
+            - Reserve fund
+            - Minimum income
+            - Maximum term
+            - Estimated average monthly payment
+            - Contemplation method
+            - Risk level
+
+        - Be aware that these are all of the consortium categories available:
+            - real estate
+            - automobile
+            - motorcycle
+            - services
+
+        ## Relevent consortium document data:
+        Fill this field with any information from the internal documents that is crucial for the next agent to answer the user's question. 
+
+        If any of these tools were not called or come empty leave their field in the outpit empty.
+    """
+
+    try:
+        return llm.invoke(prompt)
+
+    except Exception as error:
+        print(f"Data Extractor failed: {error}", flush=True)
+
+        return ToolInformation(
+            relevant_web_search_data= "",
+            relevant_document_data= "",
+            relevant_consortium_database_data= []
+        )

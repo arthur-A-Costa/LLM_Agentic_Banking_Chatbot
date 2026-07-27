@@ -120,7 +120,7 @@ def search_consortium_documents(query: str, k: int = 4) -> str:
     return format_search_results_pgvector(results)
 
 @mcp.tool()
-def search_public_web(query: str, k: int = 4) -> list[dict]:
+def search_public_web(query: str, k: int = 1) -> list[dict]:
     """
     Search the internet using Exa API.
 

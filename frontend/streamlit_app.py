@@ -204,7 +204,7 @@ if user_message:
 
     with st.chat_message("assistant"):
         with st.spinner("Thinking..."):
-            response = requests.post(BACKEND_URL, json=payload, timeout=180)
+            response = requests.post(BACKEND_URL, json=payload, timeout=400)
             response.raise_for_status()
             data = response.json()
 

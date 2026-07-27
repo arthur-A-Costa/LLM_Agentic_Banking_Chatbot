@@ -5,20 +5,17 @@ from pydantic import BaseModel, Field
 from app.llms.ollama import get_router_llm
 
 class RouterDecision(BaseModel):
-    selected_agent: Literal["salesman", "consultant", "human_support"] = Field(
+    selected_agent: Literal["salesman", "consultant"] = Field(
         description="The agent that should handle the user message."
     )
     reason: str = Field(
         description="Short explanation for the routing decision."
     )
 
-
-llm = get_router_llm().with_structured_output(RouterDecision)
-
 def router_message (message: str) -> RouterDecision:
     llm = get_router_llm().with_structured_output(RouterDecision)
 
-    prompt = """
+    prompt = f"""
     You are a routing agent for a banking chatbot focused on consortium products.
 
     Your task is to choose exactly one destination:
