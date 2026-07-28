@@ -1,6 +1,12 @@
 from app.db.session_connection import get_connection
 from decimal import Decimal
 
+from app.cache.redis_cache import (
+    get_json_cache,
+    create_cache_key,
+    set_json_cache,
+)
+
 def serialize_to_float(row: dict) -> dict:
     return{
         key: float(value) if isinstance(value, Decimal) else value for key, value in row.items() 
@@ -69,12 +75,33 @@ def search_consortium(consortium_type: str | None = None) -> list[dict]:
     finally:
         conn.close()
 
+def search_consortium_cache(consortium_type: str | None = None) -> list[dict]:
+
+    cache_key = create_cache_key("consortium_db", consortium_type)
+    cached_json = get_json_cache(cache_key)
+
+    if cached_json is not None:
+        print(f"Redis Cache Hit: {cache_key}", flush=True)
+        return cached_json
+
+    print(f"Redis Cache Miss: {cache_key}", flush=True)
+
+    result = search_consortium(consortium_type=consortium_type)
+
+    set_json_cache(
+        cache_key,
+        result,
+        (60 * 30)
+    )
+
+    return result
+
 def simulate_consortium_payment(
     credit_amount: float,
     term_months: int,
     total_admin_fee_rate: float,
-    reserve_fund_rate: float = 0.0,
-    membership_fee: float = 0.0,
+    reserve_fund_rate: float,
+    membership_fee: float,
 ) -> dict:
     """
     Simulates an estimated consortium monthly payment.

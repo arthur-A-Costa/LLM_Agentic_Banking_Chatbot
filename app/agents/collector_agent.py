@@ -4,7 +4,6 @@ from langchain.agents import create_agent
 from langchain_ollama import ChatOllama
 from app.tools.registry import get_collector_tools
 from app.llms.ollama import get_collector_llm 
-from app.utils.evidence_extractor import relevant_data_extractor
 
 SearchTools = Literal["search_consortium_products", "search_consortium_documents", "search_public_web"]
 SpecialistTools = Literal["simulate_consortium_payment", "check_consortium_affordability", "check_consortium_suitability", "consortium_installment_simulation",]
@@ -60,11 +59,13 @@ def planner_creator(message: str) -> ToolPlanner:
 
             1 - search_consortium_products:
             Gives access to database information and data regarding the available consortium options. This tools should be used when the user asks
-            about what consortium options are available, better fit a scenario, or what are the specifics of a certain consortium.
+            about what consortium options are available, better fit a scenario, what are the specifics of a certain consortium, and to get standard/default data
+            for user requested simulations.
                 Examples of prompts:
                 - What consortium options are available?
                 - What consortium should I look into if I want to buy a house?
                 - What is the maximum credit amount I can get with a automobile consortium?  
+                - Considering x credit amount and x months, how much would be my monthly payment in standard automobile consortium? 
 
             2 - search_consortium_documents:
             Gives access to the vector database with consortium documents, FAQs, manuals, policies, and guidelines.

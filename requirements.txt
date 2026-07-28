@@ -19,3 +19,4 @@ langchain-mcp-adapters
 exa-py==2.16.0
 langgraph-checkpoint-postgres
 prometheus-fastapi-instrumentator
+redis[hiredis]

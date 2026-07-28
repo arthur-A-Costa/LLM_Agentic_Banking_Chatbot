@@ -2,6 +2,12 @@ import os
 from exa_py import Exa
 import requests
 
+from app.cache.redis_cache import (
+    get_json_cache,
+    create_cache_key,
+    set_json_cache,
+)
+
 jina_auth_key = os.getenv("JINA_AUTH_KEY")
 Jina = os.getenv("JINA")
 
@@ -96,3 +102,25 @@ def search_web_with_jina(query: str, k: int = 2) -> dict:
         "search_results": search_results,
         "jina_pages": jina_pages,
     }
+
+def search_web_with_cache(query: str, k: int=3) -> list[dict]:
+
+    cache_key = create_cache_key("web_search", {"query":query, "k":k})
+    cached_json = get_json_cache(cache_key)
+
+    if cached_json is not None:
+        print(f"Redis Cache Hit: {cache_key}", flush=True)
+        return cached_json
+
+    print(f"Redis Cache Miss: {cache_key}", flush=True)
+
+    result = search_web_exa(query=query, k=k)
+
+    set_json_cache(
+        cache_key,
+        result,
+        (60 * 15)
+    )
+
+    return result
+

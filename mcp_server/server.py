@@ -1,12 +1,12 @@
 from mcp.server.fastmcp import FastMCP
 import os
 
-from app.tools.consortium import search_consortium
+from app.tools.consortium import search_consortium, search_consortium_cache
 from app.tools.registry import consortium_installment_simulation
 from app.rag.pgvector_store import search_documents_pgvector, format_search_results_pgvector
-from app.tools.exa_web_search import search_web_exa, search_web_with_jina
+from app.tools.exa_web_search import search_web_exa, search_web_with_jina, search_web_with_cache
 
-JINA = os.getenv("JINA", False)
+CACHE = os.getenv("CACHE", "false")
 
 mcp = FastMCP(
     name="banking-consortium-mcp",
@@ -46,7 +46,11 @@ def search_consortium_products(consortium_type: str | None = None) -> list[dict]
 
     This tool is the source of truth for the bank's available consortium products.
     """
-    return search_consortium(consortium_type)
+
+    if CACHE == "true":
+        return search_consortium_cache(consortium_type)
+    else: 
+        return search_consortium(consortium_type)
 
 
 @mcp.tool()
@@ -140,12 +144,12 @@ def search_public_web(query: str, k: int = 1) -> list[dict]:
     when the it directly connects to the themes in question (banking, economy, consortiums).   
     """
 
-    return search_web_exa(query=query, k=k)
+    #return search_web_exa(query=query, k=k)
 
-    # if JINA:
-    #     return search_web_with_jina(query=query, k=k)
-    # else:
-    #     return search_web_exa(query=query, k=k)
+    if CACHE == "true":
+        return search_web_with_cache(query=query, k=k)
+    else:
+        return search_web_exa(query=query, k=k)
 
 if __name__ == "__main__":
     print("Starting MCP server on 0.0.0.0:8001...", flush=True)

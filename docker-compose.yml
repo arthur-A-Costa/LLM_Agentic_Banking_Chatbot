@@ -64,6 +64,8 @@ services:
       LANGSMITH_API_KEY: ${LANGSMITH_API_KEY}
       LANGSMITH_ENDPOINT: ${LANGSMITH_ENDPOINT}
       LANGSMITH_PROJECT: ${LANGSMITH_PROJECT}
+      REDIS_URL: redis://redis:6379/0
+      CACHE: ${CACHE}
     ports:
       - "8000:8000"
     volumes:
@@ -127,8 +129,21 @@ services:
       JINA_AUTH_KEY: ${JINA_AUTH_KEY}
       JINA: ${JINA}
       JINA_MAX_PAGE: ${JINA_MAX_PAGE}
+      REDIS_URL: redis://redis:6379/0
+      CACHE: ${CACHE}
     ports:
       - "8010:8001"
+    networks:
+      - ollama_docker
+
+  redis:
+    image: redis:7-alpine
+    container_name: redis
+    ports:
+      - "6379:6379"
+    command: redis-server --appendonly yes
+    volumes:
+      - redis_data:/data
     networks:
       - ollama_docker
 
@@ -190,6 +205,7 @@ volumes:
   ollama_data:
   chroma_data:
   grafana_data:
+  redis_data:
 
 networks:
   ollama_docker:
