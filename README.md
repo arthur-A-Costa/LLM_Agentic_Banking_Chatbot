@@ -1,5 +1,6 @@
 # LLM Agentic Chat Project
 ## Project Overview
+Project focused on creating a complete banking agentic chatbot for client support and product consultation. Accomplished through the use of multi-agent workflows, complete RAG pipeline, and a MCP server. Built with python, langchain, ollama, fastAPI, and other tools and frameworks.
 
 ## Tools, Frameworks, and Technologies
 ### Language
